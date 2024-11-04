@@ -1,8 +1,11 @@
+apiVersion: v1
 data:
   context: |
     argocdUrl: "<ArgoCD URL>"
     argocdName: "<ArgoCD name>"
-    argoEnvironmentList: "<accountname>|https://<Cluster IP address>"
+    argoEnvironmentList: "argocd"
+    argoClusterServer: "https://kubernetes.default.svc"
+    organization: "<Organisation Name>"
   service.webhook.rabbitmq: |
     url: http://<RabbitMQ external IP or DNS value>:15672/api/exchanges/%2f/argo.events/publish
     basicAuth:
@@ -21,10 +24,18 @@ data:
         body: |
           {"properties":{},
           "routing_key":"argo-ssd",
-          "payload": "{\"applicationName\":\"{{.app.metadata.name}}\",\"deploymentServer\": \"{{.app.spec.destination.server}}\",\"argocdName\": \"{{.context.argocdName}}\",\"namespace\": \"{{.app.spec.destination.namespace}}\",\"deploymentStartedAt\": \"{{.app.status.operationState.startedAt}}\",\"sourceRepoUrl\": \"{{.app.status.sync.comparedTo.source.repoURL}}\",\"sourcePath\": \"{{.app.status.sync.comparedTo.source.path}}\",\"sourceTargetRevision\": \"{{.app.status.sync.comparedTo.source.targetRevision}}\",\"deployedBy\": \"{{.app.status.operationState.operation.initiatedBy.username}}\",\"environmentList\": \"{{.context.argoEnvironmentList}}\"}",
+          "payload": "{\"applicationData\": \"{{ .app | toJson | b64enc }}\",\"organization\":\"{{.context.organization}}\",\"argoClusterServer\":\"{{.context.argoClusterServer}}\" ,\"applicationName\":\"{{.app.metadata.name}}\",\"deploymentServer\": \"{{.app.spec.destination.server}}\",\"argocdName\": \"{{.context.argocdName}}\",\"namespace\": \"{{.app.spec.destination.namespace}}\",\"deploymentStartedAt\": \"{{.app.status.operationState.startedAt}}\",\"sourceRepoUrl\": \"{{.app.status.sync.comparedTo.source.repoURL}}\",\"sourcePath\": \"{{.app.status.sync.comparedTo.source.path}}\",\"sourceTargetRevision\": \"{{.app.status.sync.comparedTo.source.targetRevision}}\",\"deployedBy\": \"{{.app.status.operationState.operation.initiatedBy.username}}\",\"environmentList\": \"{{.context.argoEnvironmentList}}\",\"applicationTags\": \"{{.app.metadata.annotations.applicationTags}}\",\"serviceUrl\": \"{{.app.metadata.annotations.serviceUrl}}\"}",
           "payload_encoding":"string"}
   trigger.on-sync-running: |
     - description: Application is being synced
       send:
       - rabbitmq
       when: app.status.operationState.phase in ['Running']
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/component: notifications-controller
+    app.kubernetes.io/name: argocd-notifications-controller
+    app.kubernetes.io/part-of: argocd
+  name: argocd-notifications-cm
+  namespace: argocd
